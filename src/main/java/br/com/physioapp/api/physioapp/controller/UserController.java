@@ -1,6 +1,7 @@
 package br.com.physioapp.api.physioapp.controller;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,39 +21,39 @@ import br.com.physioapp.api.physioapp.service.UserService;
 @RequestMapping("/users")
 public class UserController {
 
-    private final UserService userService;
+  private final UserService userService;
 
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
+  public UserController(UserService userService) {
+    this.userService = userService;
+  }
 
-    @PostMapping
-    public ResponseEntity<User> createUser(@RequestBody User user) {
-        User createdUser = userService.createUser(user);
-        return new ResponseEntity<>(createdUser, HttpStatus.CREATED);
-    }
+  @PostMapping
+  public ResponseEntity<User> createUser(@RequestBody User user) {
+    User createdUser = userService.createUser(user);
+    return new ResponseEntity<>(createdUser, HttpStatus.CREATED);
+  }
 
-    @GetMapping
-    public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userService.getAllUsers();
-        return ResponseEntity.ok(users);
-    }
+  @GetMapping
+  public ResponseEntity<List<User>> getAllUsers() {
+    List<User> users = userService.getAllUsers();
+    return ResponseEntity.ok(users);
+  }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable Long id) {
-        User user = userService.getUserById(id);
-        return ResponseEntity.ok(user);
-    }
+  @GetMapping("/{id}")
+  public ResponseEntity<User> getUserById(@PathVariable UUID id) {
+    User user = userService.getUserById(id);
+    return ResponseEntity.ok(user);
+  }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User userDetails) {
-        User updatedUser = userService.updateUser(id, userDetails);
-        return ResponseEntity.ok(updatedUser);
-    }
+  @PutMapping("/{id}")
+  public ResponseEntity<User> updateUser(@PathVariable UUID id, @RequestBody User userDetails) {
+    User updatedUser = userService.updateUser(id, userDetails);
+    return ResponseEntity.ok(updatedUser);
+  }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
-        return ResponseEntity.noContent().build();
-    }
+  @DeleteMapping("/{id}")
+  public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
+    userService.deleteUser(id);
+    return ResponseEntity.noContent().build();
+  }
 }

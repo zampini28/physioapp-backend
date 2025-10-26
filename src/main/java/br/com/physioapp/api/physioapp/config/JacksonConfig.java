@@ -9,8 +9,8 @@ import com.fasterxml.jackson.datatype.hibernate6.Hibernate6Module;
 @Configuration
 public class JacksonConfig {
 
-    @Bean
-    public Module hibernate6Module() {
-        return new Hibernate6Module();
-    }
+  @Bean
+  public Module hibernate6Module() {
+    return new Hibernate6Module();
+  }
 }

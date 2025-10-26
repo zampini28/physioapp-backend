@@ -12,6 +12,62 @@
 
 ## Endpoints da API
 
+### Login e Cadastro de Fisioterapeutas e Pacientes
+
+#### POST '/auth/register'
+  
+  - **Descrição:** Cadastro de novo usuário (Paciente) 
+  - **Body (para Paciente):**
+    ```json
+    {
+      "fullname": "João Silva",
+      "email": "<joao.silva.paciente@exemplo.com>",
+      "password": "senha123",
+      "user_type": "PATIENT"
+    }
+    ```
+  
+  - **Resposta:** 201 Created.
+
+  - **Descrição:** Cadastro de novo usuário (Fisioterapeuta)
+  - **Body (para Fisioterapeuta):**
+
+    ```json
+    {
+      "fullname": "Dra. Maria Oliveira",
+      "email": "<maria.oliveira.fisio@exemplo.com>",
+      "password": "senha456",
+      "user_type": "PHYSIO",
+      "crefito": "414243-F"
+    }
+    ```
+
+  - **Resposta:** 201 Created.
+
+#### POST '/auth/login'
+  
+- **Descrição:** Login de usuário (Paciente ou Fisioterapeuta)
+- **Body:**
+    ```json
+    {
+      "email": "<joao.silva.paciente@exemplo.com>",
+      "password": "senha123"
+    }
+    ```
+  
+  - **Resposta:** 200 OK + ```{ 'token': 'eyJhbGciOiJIUzI1NiJ9...' } ```
+  ###
+
+    ```json
+    {
+      "email": "<maria.oliveira.fisio@exemplo.com>",
+      "password": "senha456"
+    }
+    ```
+  - **Resposta:** 200 OK + ```{ 'token': 'eyJhbGciOiJIUzI1NiJ9...' }```
+
+  ###
+
 ### Usuários (Patients e Physiotherapists)
 
 #### `POST /users`

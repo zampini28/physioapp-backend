@@ -3,6 +3,7 @@ package br.com.physioapp.api.physioapp.model;
 
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -22,6 +23,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -48,28 +50,24 @@ import lombok.NoArgsConstructor;
 public abstract class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @EqualsAndHashCode.Include
-    private Long id;
-
-    @Column(unique = true, nullable = false)
-    private String username;
+    private UUID id;
 
     @Column(nullable = false)
     private String fullname;
 
+    @NotBlank
     @Column(unique = true, nullable = false)
     private String email;
 
-    @Column(nullable = false)
-    private String phone;
-
+    @NotBlank
     @Column(nullable = false)
     private String password;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role;
+    private UserType type;
 
     @CreationTimestamp
     private LocalDateTime createdAt;

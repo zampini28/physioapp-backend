@@ -1,6 +1,7 @@
 package br.com.physioapp.api.physioapp.controller;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,39 +21,39 @@ import br.com.physioapp.api.physioapp.service.AppointmentService;
 @RequestMapping("/appointments")
 public class AppointmentController {
 
-    private final AppointmentService appointmentService;
+  private final AppointmentService appointmentService;
 
-    public AppointmentController(AppointmentService appointmentService) {
-        this.appointmentService = appointmentService;
+  public AppointmentController(AppointmentService appointmentService) {
+    this.appointmentService = appointmentService;
+  }
+
+  @PostMapping
+  public ResponseEntity<Appointment> createAppointment(@RequestBody AppointmentRequestDTO request) {
+    Appointment newAppointment = appointmentService.createAppointment(request);
+    return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
+  }
+
+  @GetMapping("/{id}")
+  public ResponseEntity<Appointment> getAppointmentById(@PathVariable UUID id) {
+    Appointment appointment = appointmentService.getAppointmentById(id);
+    return ResponseEntity.ok(appointment);
+  }
+
+  @GetMapping
+  public ResponseEntity<List<Appointment>> getAppointments(
+      @RequestParam(required = false) UUID patientId,
+      @RequestParam(required = false) UUID physiotherapistId) {
+
+    if (patientId != null) {
+      return ResponseEntity.ok(appointmentService.getAppointmentsForPatient(patientId));
     }
 
-    @PostMapping
-    public ResponseEntity<Appointment> createAppointment(@RequestBody AppointmentRequestDTO request) {
-        Appointment newAppointment = appointmentService.createAppointment(request);
-        return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
-    }
+    return ResponseEntity.ok(List.of());
+  }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Appointment> getAppointmentById(@PathVariable Long id) {
-        Appointment appointment = appointmentService.getAppointmentById(id);
-        return ResponseEntity.ok(appointment);
-    }
-
-    @GetMapping
-    public ResponseEntity<List<Appointment>> getAppointments(
-            @RequestParam(required = false) Long patientId,
-            @RequestParam(required = false) Long physiotherapistId) {
-        
-        if (patientId != null) {
-            return ResponseEntity.ok(appointmentService.getAppointmentsForPatient(patientId));
-        }
-
-        return ResponseEntity.ok(List.of()); 
-    }
-
-    @PostMapping("/{id}/cancel")
-    public ResponseEntity<Appointment> cancelAppointment(@PathVariable Long id) {
-        Appointment cancelledAppointment = appointmentService.cancelAppointment(id);
-        return ResponseEntity.ok(cancelledAppointment);
-    }
+  @PostMapping("/{id}/cancel")
+  public ResponseEntity<Appointment> cancelAppointment(@PathVariable UUID id) {
+    Appointment cancelledAppointment = appointmentService.cancelAppointment(id);
+    return ResponseEntity.ok(cancelledAppointment);
+  }
 }

@@ -1,6 +1,7 @@
 package br.com.physioapp.api.physioapp.controller;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,41 +22,41 @@ import br.com.physioapp.api.physioapp.service.NotificationService;
 @RequestMapping("/notifications")
 public class NotificationController {
 
-    private final NotificationService notificationService;
+  private final NotificationService notificationService;
 
-    public NotificationController(NotificationService notificationService) {
-        this.notificationService = notificationService;
-    }
+  public NotificationController(NotificationService notificationService) {
+    this.notificationService = notificationService;
+  }
 
-    @PostMapping
-    public ResponseEntity<Notification> createNotification(@RequestBody NotificationRequestDTO request) {
-        Notification createdNotification = notificationService.createNotification(request);
-        return new ResponseEntity<>(createdNotification, HttpStatus.CREATED);
-    }
+  @PostMapping
+  public ResponseEntity<Notification> createNotification(@RequestBody NotificationRequestDTO request) {
+    Notification createdNotification = notificationService.createNotification(request);
+    return new ResponseEntity<>(createdNotification, HttpStatus.CREATED);
+  }
 
-    @GetMapping
-    public ResponseEntity<List<Notification>> getNotificationsForUser(
-            @RequestParam Long userId,
-            @RequestParam(defaultValue = "false") boolean unreadOnly) {
+  @GetMapping
+  public ResponseEntity<List<Notification>> getNotificationsForUser(
+      @RequestParam UUID userId,
+      @RequestParam(defaultValue = "false") boolean unreadOnly) {
 
-        List<Notification> notifications;
-        if (unreadOnly) {
-            notifications = notificationService.getUnreadNotificationsForUser(userId);
-        } else {
-            notifications = notificationService.getNotificationsForUser(userId);
-        }
-        return ResponseEntity.ok(notifications);
+    List<Notification> notifications;
+    if (unreadOnly) {
+      notifications = notificationService.getUnreadNotificationsForUser(userId);
+    } else {
+      notifications = notificationService.getNotificationsForUser(userId);
     }
+    return ResponseEntity.ok(notifications);
+  }
 
-    @PostMapping("/{id}/read")
-    public ResponseEntity<Notification> markNotificationAsRead(@PathVariable("id") Long id) {
-        Notification notification = notificationService.markAsRead(id);
-        return ResponseEntity.ok(notification);
-    }
-    
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteNotification(@PathVariable Long id) {
-        notificationService.deleteNotification(id);
-        return ResponseEntity.noContent().build();
-    }
+  @PostMapping("/{id}/read")
+  public ResponseEntity<Notification> markNotificationAsRead(@PathVariable("id") UUID id) {
+    Notification notification = notificationService.markAsRead(id);
+    return ResponseEntity.ok(notification);
+  }
+
+  @DeleteMapping("/{id}")
+  public ResponseEntity<Void> deleteNotification(@PathVariable UUID id) {
+    notificationService.deleteNotification(id);
+    return ResponseEntity.noContent().build();
+  }
 }

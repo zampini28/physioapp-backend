@@ -1,6 +1,6 @@
 package br.com.physioapp.api.physioapp.model;
 
-public enum Role {
+public enum UserType {
     PHYSIO,
     PATIENT
 }

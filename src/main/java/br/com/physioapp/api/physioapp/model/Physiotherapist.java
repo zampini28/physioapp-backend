@@ -1,5 +1,7 @@
 package br.com.physioapp.api.physioapp.model;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.CascadeType;
@@ -26,5 +28,5 @@ public class Physiotherapist extends User {
 
     @OneToMany(mappedBy = "physiotherapist", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
-    private java.util.List<Appointment> appointments;
+    private List<Appointment> appointments;
 }

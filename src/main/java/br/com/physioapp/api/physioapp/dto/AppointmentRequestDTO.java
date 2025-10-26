@@ -1,11 +1,12 @@
 package br.com.physioapp.api.physioapp.dto;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record AppointmentRequestDTO(
-    Long physiotherapistId,
-    Long patientId, 
+    UUID physiotherapistId,
+    UUID patientId,
     LocalDateTime dateTime,
-    Integer durationMinutes,
-    String notes
-) {}
+    Integer durationMinutes,    
+    String notes) {
+}
