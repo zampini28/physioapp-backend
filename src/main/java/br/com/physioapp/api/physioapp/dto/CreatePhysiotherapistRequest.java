@@ -1,18 +1,13 @@
 package br.com.physioapp.api.physioapp.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-import br.com.physioapp.api.physioapp.model.UserType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-public record RegisterRequest(
+public record CreatePhysiotherapistRequest(
   @NotBlank(message = "Nome completo é obrigatório")
-  @Size(min = 3, max = 100, message = "Nome completo deve ter entre 3 e 100 caracteres")
-  String fullname,
-  
+  String fullName,
+
   @NotBlank(message = "E-mail é obrigatório")
   @Email(message = "E-mail inválido")
   String email,
@@ -21,9 +16,6 @@ public record RegisterRequest(
   @Size(min = 6, message = "A senha deve ter no mínimo 6 caracteres")
   String password,
 
-  @NotNull(message = "Tipo de usuário é obrigatório")
-  @JsonProperty("user_type")
-  UserType userType,
-
-  String crefito) {
-}
+  @NotBlank(message = "Número do CREFITO é obrigatório")
+  String crefito
+) {}

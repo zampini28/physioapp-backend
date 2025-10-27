@@ -1,10 +1,8 @@
 package br.com.physioapp.api.physioapp.controller;
 
-import java.util.Optional;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,12 +10,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import br.com.physioapp.api.physioapp.dto.AuthRequest;
 import br.com.physioapp.api.physioapp.dto.AuthResponse;
+import br.com.physioapp.api.physioapp.dto.CreatePatientRequest;
+import br.com.physioapp.api.physioapp.dto.CreatePhysiotherapistRequest;
 import br.com.physioapp.api.physioapp.dto.RegisterRequest;
-import br.com.physioapp.api.physioapp.model.Patient;
-import br.com.physioapp.api.physioapp.model.Physiotherapist;
 import br.com.physioapp.api.physioapp.model.User;
 import br.com.physioapp.api.physioapp.model.UserType;
-import br.com.physioapp.api.physioapp.repository.UserRepository;
 import br.com.physioapp.api.physioapp.service.JwtService;
 import br.com.physioapp.api.physioapp.service.UserService;
 
@@ -25,57 +22,48 @@ import br.com.physioapp.api.physioapp.service.UserService;
 @RequestMapping("/auth")
 public class AuthController {
 
-  private final UserService userService;
-  private final UserRepository userRepository;
-  private final PasswordEncoder passwordEncoder;
-  private final JwtService jwtService;
+  @Autowired
+  private UserService userService;
 
-  public AuthController(UserService userService, UserRepository userRepository, PasswordEncoder passwordEncoder,
-      JwtService jwtService) {
-    this.userService = userService;
-    this.userRepository = userRepository;
-    this.passwordEncoder = passwordEncoder;
-    this.jwtService = jwtService;
-  }
+  @Autowired
+  private JwtService jwtService;
 
   @PostMapping("/register")
-  public ResponseEntity<User> register(@RequestBody RegisterRequest request) {
-    User toCreate;
-    if (request.userType() == UserType.PHYSIO) {
-      Physiotherapist physio = new Physiotherapist();
-      physio.setFullname(request.fullname());
-      physio.setEmail(request.email());
-      physio.setPassword(request.password());
-      physio.setType(UserType.PHYSIO);
-      physio.setCrefito(request.crefito());
-      toCreate = physio;
-    } else {
-      Patient patient = new Patient();
-      patient.setFullname(request.fullname());
-      patient.setEmail(request.email());
-      patient.setPassword(request.password());
-      patient.setType(UserType.PATIENT);
-      toCreate = patient;
+  public ResponseEntity<User> register(@RequestBody RegisterRequest user) {
+    try {
+      if (user.userType() == UserType.PATIENT) {
+        CreatePatientRequest patientRequest = new CreatePatientRequest(
+            user.fullname(),
+            user.email(),
+            user.password());
+
+        userService.createPatient(patientRequest);
+      } else if (user.userType() == UserType.PHYSIO) {
+        CreatePhysiotherapistRequest physiotherapistRequest = new CreatePhysiotherapistRequest(
+            user.fullname(),
+            user.email(),
+            user.password(),
+            user.crefito());
+
+        userService.createPhysiotherapist(physiotherapistRequest);
+      } else {
+        System.out.println("Invalid user type: " + user.userType());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+      }
+
+      return ResponseEntity.status(HttpStatus.CREATED).build(); 
+    } catch (IllegalArgumentException e) {
+      System.out.println("Error during user registration: " + e.getMessage());
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
     }
-
-    User created = userService.createUser(toCreate);
-
-    return ResponseEntity.status(HttpStatus.CREATED).body(created);
   }
 
   @PostMapping("/login")
   public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request) {
-    Optional<User> userOpt = userRepository.findByEmail(request.email());
-    if (userOpt.isEmpty()) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
-
-    User user = userOpt.get();
-    if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-    }
+    User user = userService.validateUser(request.email(), request.password());
 
     String token = jwtService.generateToken(user);
+
     return ResponseEntity.ok(new AuthResponse(token));
   }
 

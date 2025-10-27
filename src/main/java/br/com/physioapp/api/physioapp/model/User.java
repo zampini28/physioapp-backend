@@ -1,7 +1,5 @@
 package br.com.physioapp.api.physioapp.model;
 
-
-
 import java.time.LocalDateTime;
 import java.util.UUID;
 

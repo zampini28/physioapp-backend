@@ -27,5 +27,6 @@ public class Patient extends User {
     private List<Appointment> appointments;
 
     @OneToMany(mappedBy = "recipient", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<Notification> notifications;
 }

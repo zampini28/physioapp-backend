@@ -18,6 +18,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 
   List<Appointment> findByDateTimeBetween(LocalDateTime start, LocalDateTime end);
 
+  List<Appointment> findByPatientIdAndPhysiotherapistIdOrderByDateTime(UUID patientId, UUID physiotherapistId);
+
   @Query(value = "SELECT * FROM appointments a WHERE a.physiotherapist_id = :physioId " +
       "AND a.status <> 'CANCELLED' " +
       "AND a.id <> :excludeAppointmentId " +

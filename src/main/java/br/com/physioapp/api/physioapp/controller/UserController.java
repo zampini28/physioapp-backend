@@ -14,7 +14,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import br.com.physioapp.api.physioapp.dto.CreatePatientRequest;
+import br.com.physioapp.api.physioapp.dto.CreatePhysiotherapistRequest;
+import br.com.physioapp.api.physioapp.dto.RegisterRequest;
+import br.com.physioapp.api.physioapp.dto.UserUpdateRequest;
 import br.com.physioapp.api.physioapp.model.User;
+import br.com.physioapp.api.physioapp.model.UserType;
 import br.com.physioapp.api.physioapp.service.UserService;
 
 @RestController
@@ -28,9 +33,30 @@ public class UserController {
   }
 
   @PostMapping
-  public ResponseEntity<User> createUser(@RequestBody User user) {
-    User createdUser = userService.createUser(user);
-    return new ResponseEntity<>(createdUser, HttpStatus.CREATED);
+  public ResponseEntity<Void> createUser(@RequestBody RegisterRequest user) {
+    if (user.userType() == UserType.PHYSIO && (user.crefito() == null || user.crefito().isBlank())) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+    }
+
+    if (user.userType() == UserType.PATIENT) {
+      CreatePatientRequest patientRequest = new CreatePatientRequest(
+          user.fullname(),
+          user.email(),
+          user.password());
+      userService.createPatient(patientRequest);
+      return ResponseEntity.status(HttpStatus.CREATED).build();
+
+    } else if (user.userType() == UserType.PHYSIO) {
+      CreatePhysiotherapistRequest physiotherapistRequest = new CreatePhysiotherapistRequest(
+          user.fullname(),
+          user.email(),
+          user.password(),
+          user.crefito());
+      userService.createPhysiotherapist(physiotherapistRequest);
+      return ResponseEntity.status(HttpStatus.CREATED).build();
+    } else {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+    }
   }
 
   @GetMapping
@@ -46,7 +72,7 @@ public class UserController {
   }
 
   @PutMapping("/{id}")
-  public ResponseEntity<User> updateUser(@PathVariable UUID id, @RequestBody User userDetails) {
+  public ResponseEntity<User> updateUser(@PathVariable UUID id, @RequestBody UserUpdateRequest userDetails) {
     User updatedUser = userService.updateUser(id, userDetails);
     return ResponseEntity.ok(updatedUser);
   }

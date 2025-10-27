@@ -44,11 +44,8 @@ public class AppointmentController {
       @RequestParam(required = false) UUID patientId,
       @RequestParam(required = false) UUID physiotherapistId) {
 
-    if (patientId != null) {
-      return ResponseEntity.ok(appointmentService.getAppointmentsForPatient(patientId));
-    }
-
-    return ResponseEntity.ok(List.of());
+    List<Appointment> appointments = appointmentService.getAppointments(patientId, physiotherapistId);
+    return ResponseEntity.ok(appointments);
   }
 
   @PostMapping("/{id}/cancel")

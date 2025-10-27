@@ -4,6 +4,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,16 +24,16 @@ import br.com.physioapp.api.physioapp.repository.PhysiotherapistRepository;
 @Service
 public class AppointmentService {
 
-  private final AppointmentRepository appointmentRepository;
-  private final PatientRepository patientRepository;
-  private final PhysiotherapistRepository physiotherapistRepository;
+  private final int defaultPageSize = 50;
 
-  public AppointmentService(AppointmentRepository appointmentRepository, PatientRepository patientRepository,
-      PhysiotherapistRepository physiotherapistRepository) {
-    this.appointmentRepository = appointmentRepository;
-    this.patientRepository = patientRepository;
-    this.physiotherapistRepository = physiotherapistRepository;
-  }
+  @Autowired
+  private AppointmentRepository appointmentRepository;
+
+  @Autowired
+  private PatientRepository patientRepository;
+
+  @Autowired
+  private PhysiotherapistRepository physiotherapistRepository;
 
   @Transactional
   public Appointment createAppointment(AppointmentRequestDTO request) {
@@ -67,6 +70,21 @@ public class AppointmentService {
       throw new ResourceNotFoundException("ID Paciente não encontrado: " + patientId);
     }
     return appointmentRepository.findByPatientIdOrderByDateTime(patientId);
+  }
+
+  @Transactional(readOnly = true)
+  public List<Appointment> getAppointments(UUID patientId, UUID physiotherapistId) {
+    if (patientId != null && physiotherapistId != null) {
+      return appointmentRepository.findByPatientIdAndPhysiotherapistIdOrderByDateTime(
+          patientId, physiotherapistId);
+    } else if (patientId != null) {
+      return appointmentRepository.findByPatientIdOrderByDateTime(patientId);
+    } else if (physiotherapistId != null) {
+      return appointmentRepository.findByPhysiotherapistIdOrderByDateTime(physiotherapistId);
+    } else {
+      Pageable limit = PageRequest.of(0, defaultPageSize);
+      return appointmentRepository.findAll(limit).getContent();
+    }
   }
 
   @Transactional

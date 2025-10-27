@@ -3,6 +3,7 @@ package br.com.physioapp.api.physioapp.service;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,13 +17,11 @@ import br.com.physioapp.api.physioapp.repository.UserRepository;
 @Service
 public class NotificationService {
 
-  private final NotificationRepository notificationRepository;
-  private final UserRepository userRepository;
+  @Autowired
+  private NotificationRepository notificationRepository;
 
-  public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository) {
-    this.notificationRepository = notificationRepository;
-    this.userRepository = userRepository;
-  }
+  @Autowired
+  private UserRepository userRepository;
 
   @Transactional
   public Notification createNotification(NotificationRequestDTO request) {
