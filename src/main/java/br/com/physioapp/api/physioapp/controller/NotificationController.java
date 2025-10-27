@@ -1,60 +1,91 @@
 package br.com.physioapp.api.physioapp.controller;
 
-import java.util.List;
-import java.util.UUID;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
-import br.com.physioapp.api.physioapp.dto.NotificationRequestDTO;
-import br.com.physioapp.api.physioapp.model.Notification;
+import br.com.physioapp.api.physioapp.dto.CreateNotificationRequest;
+import br.com.physioapp.api.physioapp.dto.NotificationResponseDTO;
+import br.com.physioapp.api.physioapp.dto.NotificationSummaryDTO;
 import br.com.physioapp.api.physioapp.service.NotificationService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
+import java.util.Collection;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/notifications")
 public class NotificationController {
 
-  @Autowired
-  private NotificationService notificationService;
+  private final NotificationService notificationService;
+
+  public NotificationController(NotificationService notificationService) {
+    this.notificationService = notificationService;
+  }
 
   @PostMapping
-  public ResponseEntity<Notification> createNotification(@RequestBody NotificationRequestDTO request) {
-    Notification createdNotification = notificationService.createNotification(request);
-    return new ResponseEntity<>(createdNotification, HttpStatus.CREATED);
+  public ResponseEntity<NotificationResponseDTO> createNotification(
+      @Valid @RequestBody CreateNotificationRequest request) {
+    NotificationResponseDTO created = notificationService.createNotification(request);
+    URI location = URI.create("/notifications/" + created.id());
+    return ResponseEntity.created(location).body(created);
   }
 
   @GetMapping
-  public ResponseEntity<List<Notification>> getNotificationsForUser(
-      @RequestParam UUID userId,
+  public ResponseEntity<Page<NotificationSummaryDTO>> listNotifications(
+      Authentication authentication,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "20") int size,
       @RequestParam(defaultValue = "false") boolean unreadOnly) {
 
-    List<Notification> notifications;
+    UUID userId = UUID.fromString(authentication.getName());
+    Pageable pageable = PageRequest.of(page, Math.min(size, 100));
+    Page<NotificationSummaryDTO> result;
     if (unreadOnly) {
-      notifications = notificationService.getUnreadNotificationsForUser(userId);
+      result = notificationService.getUnreadNotificationsForUser(userId, pageable);
     } else {
-      notifications = notificationService.getNotificationsForUser(userId);
+      result = notificationService.getNotificationsForUser(userId, pageable);
     }
-    return ResponseEntity.ok(notifications);
+    return ResponseEntity.ok(result);
+  }
+
+  @GetMapping("/count/unread")
+  public ResponseEntity<Long> getUnreadCount(Authentication authentication) {
+    UUID userId = UUID.fromString(authentication.getName());
+    long count = notificationService.getUnreadCount(userId);
+    return ResponseEntity.ok(count);
+  }
+
+  @PostMapping("/read")
+  public ResponseEntity<Integer> markAsReadBulk(
+      Authentication authentication,
+      @RequestBody Collection<UUID> notificationIds) {
+
+    UUID userId = UUID.fromString(authentication.getName());
+    int updated = notificationService.markAsRead(userId, notificationIds);
+    return ResponseEntity.ok(updated);
   }
 
   @PostMapping("/{id}/read")
-  public ResponseEntity<Notification> markNotificationAsRead(@PathVariable("id") UUID id) {
-    Notification notification = notificationService.markAsRead(id);
-    return ResponseEntity.ok(notification);
+  public ResponseEntity<Void> markAsRead(
+      Authentication authentication,
+      @PathVariable("id") UUID id) {
+
+    UUID userId = UUID.fromString(authentication.getName());
+    notificationService.markAsRead(userId, java.util.List.of(id));
+    return ResponseEntity.ok().build();
   }
 
   @DeleteMapping("/{id}")
-  public ResponseEntity<Void> deleteNotification(@PathVariable UUID id) {
-    notificationService.deleteNotification(id);
+  public ResponseEntity<Void> deleteNotification(
+      Authentication authentication,
+      @PathVariable("id") UUID id) {
+
+    UUID userId = UUID.fromString(authentication.getName());
+    notificationService.deleteNotification(userId, id);
     return ResponseEntity.noContent().build();
   }
 }

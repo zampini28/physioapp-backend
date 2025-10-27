@@ -1,18 +1,25 @@
 package br.com.physioapp.api.physioapp.service;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Collection;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import br.com.physioapp.api.physioapp.dto.AppointmentRequestDTO;
+import br.com.physioapp.api.physioapp.dto.AppointmentResponseDTO;
+import br.com.physioapp.api.physioapp.events.AppointmentCancelledEvent;
+import br.com.physioapp.api.physioapp.events.AppointmentCreatedEvent;
 import br.com.physioapp.api.physioapp.exception.ResourceNotFoundException;
 import br.com.physioapp.api.physioapp.exception.SchedulingConflictException;
+import br.com.physioapp.api.physioapp.mapper.AppointmentMapper;
 import br.com.physioapp.api.physioapp.model.Appointment;
 import br.com.physioapp.api.physioapp.model.AppointmentStatus;
 import br.com.physioapp.api.physioapp.model.Patient;
@@ -24,89 +31,152 @@ import br.com.physioapp.api.physioapp.repository.PhysiotherapistRepository;
 @Service
 public class AppointmentService {
 
+  private final AppointmentRepository appointmentRepository;
+  private final PatientRepository patientRepository;
+  private final PhysiotherapistRepository physiotherapistRepository;
+  private final ApplicationEventPublisher eventPublisher;
+  private final AppointmentMapper mapper;
+  private final Clock clock;
   private final int defaultPageSize = 50;
 
-  @Autowired
-  private AppointmentRepository appointmentRepository;
-
-  @Autowired
-  private PatientRepository patientRepository;
-
-  @Autowired
-  private PhysiotherapistRepository physiotherapistRepository;
+  public AppointmentService(AppointmentRepository appointmentRepository,
+      PatientRepository patientRepository,
+      PhysiotherapistRepository physiotherapistRepository,
+      ApplicationEventPublisher eventPublisher,
+      AppointmentMapper mapper,
+      Clock clock) {
+    this.appointmentRepository = appointmentRepository;
+    this.patientRepository = patientRepository;
+    this.physiotherapistRepository = physiotherapistRepository;
+    this.eventPublisher = eventPublisher;
+    this.mapper = mapper;
+    this.clock = clock;
+  }
 
   @Transactional
-  public Appointment createAppointment(AppointmentRequestDTO request) {
+  public AppointmentResponseDTO createAppointment(AppointmentRequestDTO request) {
+    validateRequest(request);
+
     Patient patient = patientRepository.findById(request.patientId())
         .orElseThrow(() -> new ResourceNotFoundException("ID Paciente não encontrado: " + request.patientId()));
 
-    Physiotherapist physiotherapist = physiotherapistRepository.findById(request.physiotherapistId())
+    Physiotherapist physio = physiotherapistRepository.findById(request.physiotherapistId())
         .orElseThrow(
             () -> new ResourceNotFoundException("ID Fisioterapeuta não encontrado: " + request.physiotherapistId()));
 
-    checkSchedulingConflict(physiotherapist.getId(), request.dateTime(), request.durationMinutes(), null);
+    LocalDateTime start = request.dateTime();
+    LocalDateTime end = start.plusMinutes(request.durationMinutes());
 
-    Appointment newAppointment = Appointment.builder()
+    if (hasConflict(physio.getId(), start, end, null)) {
+      throw new SchedulingConflictException("Conflito de agendamento detectado para o fisioterapeuta");
+    }
+
+    Appointment ap = Appointment.builder()
         .patient(patient)
-        .physiotherapist(physiotherapist)
-        .dateTime(request.dateTime())
+        .physiotherapist(physio)
+        .dateTime(start)
         .durationMinutes(request.durationMinutes())
         .notes(request.notes())
         .status(AppointmentStatus.SCHEDULED)
         .build();
 
-    return appointmentRepository.save(newAppointment);
+    try {
+      Appointment saved = appointmentRepository.save(ap);
+      AppointmentResponseDTO dto = mapper.toResponse(saved);
+      eventPublisher.publishEvent(new AppointmentCreatedEvent(dto));
+      return dto;
+    } catch (DataIntegrityViolationException ex) {
+      lockPhysioRangeAndCheckThenSave(physio.getId(), start, end, ap);
+      return mapper.toResponse(appointmentRepository.findById(ap.getId()).orElseThrow());
+    }
   }
 
   @Transactional(readOnly = true)
-  public Appointment getAppointmentById(UUID id) {
-    return appointmentRepository.findById(id)
+  public AppointmentResponseDTO getAppointmentById(UUID id) {
+    Appointment ap = appointmentRepository.findByIdWithParticipants(id)
         .orElseThrow(() -> new ResourceNotFoundException("ID Consulta não encontrada: " + id));
+    return mapper.toResponse(ap);
   }
 
   @Transactional(readOnly = true)
-  public List<Appointment> getAppointmentsForPatient(UUID patientId) {
-    if (!patientRepository.existsById(patientId)) {
-      throw new ResourceNotFoundException("ID Paciente não encontrado: " + patientId);
-    }
-    return appointmentRepository.findByPatientIdOrderByDateTime(patientId);
-  }
+  public Page<AppointmentResponseDTO> getAppointments(UUID patientId, UUID physiotherapistId, int page, int size) {
+    Pageable pageable = PageRequest.of(page, Math.min(size, defaultPageSize));
+    Page<Appointment> pageResult;
 
-  @Transactional(readOnly = true)
-  public List<Appointment> getAppointments(UUID patientId, UUID physiotherapistId) {
     if (patientId != null && physiotherapistId != null) {
-      return appointmentRepository.findByPatientIdAndPhysiotherapistIdOrderByDateTime(
-          patientId, physiotherapistId);
+      pageResult = appointmentRepository.findByPatientIdAndPhysiotherapistIdOrderByDateTime(patientId,
+          physiotherapistId, pageable);
     } else if (patientId != null) {
-      return appointmentRepository.findByPatientIdOrderByDateTime(patientId);
+      pageResult = appointmentRepository.findByPatientIdOrderByDateTime(patientId, pageable);
     } else if (physiotherapistId != null) {
-      return appointmentRepository.findByPhysiotherapistIdOrderByDateTime(physiotherapistId);
+      pageResult = appointmentRepository.findByPhysiotherapistIdOrderByDateTime(physiotherapistId, pageable);
     } else {
-      Pageable limit = PageRequest.of(0, defaultPageSize);
-      return appointmentRepository.findAll(limit).getContent();
+      pageResult = appointmentRepository.findAll(pageable);
     }
+
+    return pageResult.map(mapper::toResponse);
   }
 
   @Transactional
-  public Appointment cancelAppointment(UUID id) {
-    Appointment appointment = getAppointmentById(id);
+  public AppointmentResponseDTO cancelAppointment(UUID id) {
+    Appointment appointment = appointmentRepository.findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("ID Consulta não encontrada: " + id));
 
-    if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
-      throw new IllegalStateException("Não é possível cancelar um compromisso concluído.");
+    if (!appointment.getStatus().canTransitionTo(AppointmentStatus.CANCELLED)) {
+      throw new IllegalStateException("Não é possível cancelar o agendamento no estado atual.");
     }
 
     appointment.setStatus(AppointmentStatus.CANCELLED);
-    return appointmentRepository.save(appointment);
+    Appointment updated = appointmentRepository.save(appointment);
+    AppointmentResponseDTO dto = mapper.toResponse(updated);
+    eventPublisher.publishEvent(new AppointmentCancelledEvent(dto));
+    return dto;
   }
 
-  private void checkSchedulingConflict(UUID physioId, LocalDateTime start, int duration, UUID appointmentIdToExclude) {
-    LocalDateTime end = start.plusMinutes(duration);
-    List<Appointment> overlapping = appointmentRepository.findOverlappingAppointments(physioId, start, end,
-        appointmentIdToExclude);
-    if (!overlapping.isEmpty()) {
-      throw new SchedulingConflictException(
-          "O fisioterapeuta não está disponível no horário solicitado. Conflito com o ID do agendamento: "
-              + overlapping.get(0).getId());
+  @Transactional
+  public int cancelAppointmentsBulk(Collection<UUID> ids) {
+    return appointmentRepository.updateStatusBulk(ids, AppointmentStatus.CANCELLED);
+  }
+
+  private void validateRequest(AppointmentRequestDTO req) {
+    if (req.durationMinutes() == null || req.durationMinutes() <= 0 || req.durationMinutes() > 24 * 60) {
+      throw new IllegalArgumentException("Duração inválida");
     }
+    LocalDateTime now = LocalDateTime.now(clock);
+    if (req.dateTime().isBefore(now)) {
+      throw new IllegalArgumentException("Data/hora deve ser no futuro");
+    }
+  }
+
+  private boolean hasConflict(UUID physioId, LocalDateTime start, LocalDateTime end, UUID excludeId) {
+    return !appointmentRepository.findOverlappingAppointmentsPostgres(physioId, start, end, excludeId).isEmpty();
+  }
+
+  @Transactional
+  protected void lockPhysioRangeAndCheckThenSave(UUID physioId, LocalDateTime start, LocalDateTime end,
+      Appointment apToSave) {
+    appointmentRepository.lockAppointmentsForPhysioInRange(physioId, start, end);
+    if (hasConflict(physioId, start, end, null)) {
+      throw new SchedulingConflictException("Conflito detectado ao tentar salvar após tentativa concorrente");
+    }
+    Appointment saved = appointmentRepository.save(apToSave);
+    eventPublisher.publishEvent(new AppointmentCreatedEvent(mapper.toResponse(saved)));
+  }
+
+  @Transactional(readOnly = true)
+  public Page<AppointmentResponseDTO> getAppointments(UUID patientId, UUID physiotherapistId, Pageable pageable) {
+    Page<Appointment> pageResult;
+    if (patientId != null && physiotherapistId != null) {
+      pageResult = appointmentRepository.findByPatientIdAndPhysiotherapistIdOrderByDateTime(
+          patientId, physiotherapistId, pageable);
+    } else if (patientId != null) {
+      pageResult = appointmentRepository.findByPatientIdOrderByDateTime(patientId, pageable);
+    } else if (physiotherapistId != null) {
+      pageResult = appointmentRepository.findByPhysiotherapistIdOrderByDateTime(physiotherapistId, pageable);
+    } else {
+      pageResult = appointmentRepository.findAll(pageable);
+    }
+
+    return pageResult.map(mapper::toResponse);
   }
 }

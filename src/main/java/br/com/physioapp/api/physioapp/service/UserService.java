@@ -4,6 +4,11 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,10 +17,14 @@ import br.com.physioapp.api.physioapp.dto.CreatePatientRequest;
 import br.com.physioapp.api.physioapp.dto.CreatePhysiotherapistRequest;
 import br.com.physioapp.api.physioapp.dto.UserResponse;
 import br.com.physioapp.api.physioapp.dto.UserUpdateRequest;
+import br.com.physioapp.api.physioapp.events.UserCreatedEvent;
+import br.com.physioapp.api.physioapp.events.UserDeletedEvent;
+import br.com.physioapp.api.physioapp.events.UserUpdatedEvent;
 import br.com.physioapp.api.physioapp.exception.AuthenticationException;
 import br.com.physioapp.api.physioapp.exception.CrefitoAlreadyExistsException;
 import br.com.physioapp.api.physioapp.exception.EmailAlreadyExistsException;
 import br.com.physioapp.api.physioapp.exception.ResourceNotFoundException;
+import br.com.physioapp.api.physioapp.mapper.UserMapper;
 import br.com.physioapp.api.physioapp.model.Patient;
 import br.com.physioapp.api.physioapp.model.Physiotherapist;
 import br.com.physioapp.api.physioapp.model.User;
@@ -26,88 +35,123 @@ import br.com.physioapp.api.physioapp.repository.UserRepository;
 @Service
 public class UserService {
 
-  @Autowired
-  private PhysiotherapistRepository physiotherapistRepository;
+  private final PhysiotherapistRepository physiotherapistRepository;
+  private final UserRepository userRepository;
+  private final PasswordEncoder passwordEncoder;
+  private final ApplicationEventPublisher eventPublisher;
+  private final UserMapper mapper;
+  private final int defaultPageSize = 50;
 
-  @Autowired
-  private UserRepository userRepository;
-
-  @Autowired
-  private PasswordEncoder passwordEncoder;
-
-  @Transactional(readOnly = true)
-  public List<User> getAllUsers() {
-    return userRepository.findAll();
+  public UserService(PhysiotherapistRepository physiotherapistRepository,
+      UserRepository userRepository,
+      PasswordEncoder passwordEncoder,
+      ApplicationEventPublisher eventPublisher,
+      UserMapper mapper) {
+    this.physiotherapistRepository = physiotherapistRepository;
+    this.userRepository = userRepository;
+    this.passwordEncoder = passwordEncoder;
+    this.eventPublisher = eventPublisher;
+    this.mapper = mapper;
   }
 
   @Transactional(readOnly = true)
-  public User getUserById(UUID id) {
-    return userRepository.findById(id)
+  public Page<UserResponse> getAllUsers(int page, int size) {
+    Pageable p = PageRequest.of(page, Math.min(size, defaultPageSize));
+    return userRepository.findAllProjectedBy(p).map(mapper::toResponse);
+  }
+
+  @Transactional(readOnly = true)
+  public UserResponse getUserById(UUID id) {
+    User user = userRepository.findByIdWithType(id)
         .orElseThrow(() -> new ResourceNotFoundException("ID usuário não encontrado: " + id));
+    return mapper.toResponse(user);
   }
 
-  public User validateUser(String email, String rawPassword) {
-    User user = userRepository.findByEmail(email)
-        .orElseThrow(() -> new AuthenticationException("Credenciais inválidas."));
-
-    if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
-      throw new AuthenticationException("Credenciais inválidas.");
-    }
-
-    return user;
+  @Transactional(readOnly = true)
+  public UserResponse getUserProfile(UUID userId) {
+    return getUserById(userId);
   }
 
   @Transactional
-  public Patient createPatient(CreatePatientRequest request) {
-    if (userRepository.findByEmail(request.email()).isPresent()) {
-      throw new EmailAlreadyExistsException("E-mail já cadastrado: " + request.email());
+  public UserResponse createPatient(CreatePatientRequest req) {
+    validateEmailAndPassword(req.email(), req.password());
+    if (userRepository.existsByEmail(req.email())) {
+      throw new EmailAlreadyExistsException("E-mail já cadastrado: " + req.email());
     }
 
-    Patient patient = new Patient();
-    patient.setFullname(request.fullName());
-    patient.setEmail(request.email());
-    patient.setPassword(passwordEncoder.encode(request.password()));
-    patient.setType(UserType.PATIENT);
+    Patient p = new Patient();
+    p.setFullname(req.fullName());
+    p.setEmail(req.email());
+    p.setPassword(passwordEncoder.encode(req.password()));
+    p.setType(UserType.PATIENT);
 
-    return userRepository.save(patient);
+    try {
+      User saved = userRepository.save(p);
+      UserResponse resp = mapper.toResponse(saved);
+      eventPublisher.publishEvent(new UserCreatedEvent(resp));
+      return resp;
+    } catch (DataIntegrityViolationException ex) {
+      throw new EmailAlreadyExistsException("E-mail já cadastrado: " + req.email());
+    }
   }
 
   @Transactional
-  public Physiotherapist createPhysiotherapist(CreatePhysiotherapistRequest request) {
-    if (userRepository.findByEmail(request.email()).isPresent()) {
-      throw new EmailAlreadyExistsException("E-mail já cadastrado: " + request.email());
-    }
-
-    if (request.crefito() == null || request.crefito().isBlank()) {
+  public UserResponse createPhysiotherapist(CreatePhysiotherapistRequest req) {
+    validateEmailAndPassword(req.email(), req.password());
+    if (req.crefito() == null || req.crefito().isBlank()) {
       throw new IllegalArgumentException("CREFITO é obrigatório para fisioterapeutas.");
     }
 
-    if (physiotherapistRepository.findByCrefito(request.crefito()).isPresent()) {
-      throw new CrefitoAlreadyExistsException("CREFITO já cadastrado: " + request.crefito());
+    if (userRepository.existsByEmail(req.email())) {
+      throw new EmailAlreadyExistsException("E-mail já cadastrado: " + req.email());
     }
 
-    Physiotherapist physio = new Physiotherapist();
-    physio.setFullname(request.fullName());
-    physio.setEmail(request.email());
-    physio.setPassword(passwordEncoder.encode(request.password()));
-    physio.setCrefito(request.crefito());
-    physio.setType(UserType.PHYSIO);
+    if (physiotherapistRepository.existsByCrefito(req.crefito())) {
+      throw new CrefitoAlreadyExistsException("CREFITO já cadastrado: " + req.crefito());
+    }
 
-    return userRepository.save(physio);
+    Physiotherapist ph = new Physiotherapist();
+    ph.setFullname(req.fullName());
+    ph.setEmail(req.email());
+    ph.setPassword(passwordEncoder.encode(req.password()));
+    ph.setCrefito(req.crefito());
+    ph.setType(UserType.PHYSIO);
+
+    try {
+      User saved = userRepository.save(ph);
+      UserResponse resp = mapper.toResponse(saved);
+      eventPublisher.publishEvent(new UserCreatedEvent(resp));
+      return resp;
+    } catch (DataIntegrityViolationException ex) {
+      if (physiotherapistRepository.existsByCrefito(req.crefito())) {
+        throw new CrefitoAlreadyExistsException("CREFITO já cadastrado: " + req.crefito());
+      }
+      throw new EmailAlreadyExistsException("E-mail já cadastrado: " + req.email());
+    }
   }
 
   @Transactional
-  public User updateUser(UUID id, UserUpdateRequest userDetails) {
-    User existingUser = getUserById(id);
+  public UserResponse updateUser(UUID id, UserUpdateRequest dto) {
+    User existing = userRepository.findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("ID usuário não encontrado: " + id));
 
-    existingUser.setFullname(userDetails.fullName());
-    existingUser.setEmail(userDetails.email());
-
-    if (userDetails.password() != null && !userDetails.password().isBlank()) {
-      existingUser.setPassword(passwordEncoder.encode(userDetails.password()));
+    if (dto.email() != null && !dto.email().equalsIgnoreCase(existing.getEmail())
+        && userRepository.existsByEmail(dto.email())) {
+      throw new EmailAlreadyExistsException("E-mail já cadastrado: " + dto.email());
     }
 
-    return userRepository.save(existingUser);
+    existing.setFullname(dto.fullName());
+    if (dto.email() != null && !dto.email().isBlank())
+      existing.setEmail(dto.email());
+    if (dto.password() != null && !dto.password().isBlank()) {
+      validatePasswordPolicy(dto.password());
+      existing.setPassword(passwordEncoder.encode(dto.password()));
+    }
+
+    User saved = userRepository.save(existing);
+    UserResponse resp = mapper.toResponse(saved);
+    eventPublisher.publishEvent(new UserUpdatedEvent(resp));
+    return resp;
   }
 
   @Transactional
@@ -116,25 +160,34 @@ public class UserService {
       throw new ResourceNotFoundException("ID Usuário não encontrado: " + id);
     }
     userRepository.deleteById(id);
+    eventPublisher.publishEvent(new UserDeletedEvent(id));
   }
-  
+
   @Transactional(readOnly = true)
-  public UserResponse getUserProfile(UUID userId) {
-    User user = userRepository.findById(userId)
-        .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado: " + userId));
+  public User validateUserForAuth(String email, String rawPassword) {
+    User user = userRepository.findByEmail(email)
+        .orElseThrow(() -> new AuthenticationException("Credenciais inválidas."));
 
-    String crefito = null;
-
-    if (user instanceof Physiotherapist) {
-      crefito = ((Physiotherapist) user).getCrefito();
+    if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
+      throw new AuthenticationException("Credenciais inválidas.");
     }
-
-    return new UserResponse(
-        user.getId(),
-        user.getFullname(),
-        user.getEmail(),
-        user.getType(),
-        crefito);
+    return user;
   }
 
+  private void validateEmailAndPassword(String email, String password) {
+    if (email == null || email.isBlank())
+      throw new IllegalArgumentException("Email obrigatório");
+    validatePasswordPolicy(password);
+  }
+
+  private void validatePasswordPolicy(String password) {
+    if (password == null || password.length() < 8) {
+      throw new IllegalArgumentException("Senha deve ter ao menos 8 caracteres");
+    }
+    boolean hasDigit = password.chars().anyMatch(Character::isDigit);
+    boolean hasLetter = password.chars().anyMatch(Character::isLetter);
+    if (!hasDigit || !hasLetter) {
+      throw new IllegalArgumentException("Senha deve conter letras e números");
+    }
+  }
 }

@@ -1,5 +1,6 @@
 package br.com.physioapp.api.physioapp.model;
 
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -18,15 +19,25 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @DiscriminatorValue("PATIENT")
 public class Patient extends User {
 
-    @OneToMany(mappedBy = "patient", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "patient", cascade = {
+            CascadeType.PERSIST, CascadeType.MERGE }, orphanRemoval = false, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Appointment> appointments;
 
-    @OneToMany(mappedBy = "recipient", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "recipient", cascade = {
+        CascadeType.PERSIST, CascadeType.MERGE }, orphanRemoval = false, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Notification> notifications;
+
+    public List<Appointment> getAppointmentsUnmodifiable() {
+        return Collections.unmodifiableList(appointments);
+    }
+
+    public List<Notification> getNotificationsUnmodifiable() {
+        return Collections.unmodifiableList(notifications);
+    }
 }

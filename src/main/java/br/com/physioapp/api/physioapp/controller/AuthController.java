@@ -1,70 +1,62 @@
 package br.com.physioapp.api.physioapp.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-
-import br.com.physioapp.api.physioapp.dto.AuthRequest;
-import br.com.physioapp.api.physioapp.dto.AuthResponse;
-import br.com.physioapp.api.physioapp.dto.CreatePatientRequest;
-import br.com.physioapp.api.physioapp.dto.CreatePhysiotherapistRequest;
-import br.com.physioapp.api.physioapp.dto.RegisterRequest;
-import br.com.physioapp.api.physioapp.model.User;
+import br.com.physioapp.api.physioapp.dto.*;
+import br.com.physioapp.api.physioapp.events.UserCreatedEvent;
 import br.com.physioapp.api.physioapp.model.UserType;
 import br.com.physioapp.api.physioapp.service.JwtService;
 import br.com.physioapp.api.physioapp.service.UserService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.context.ApplicationEventPublisher;
+
+import java.net.URI;
 
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
 
-  @Autowired
-  private UserService userService;
+  private final UserService userService;
+  private final JwtService jwtService;
+  private final ApplicationEventPublisher eventPublisher;
 
-  @Autowired
-  private JwtService jwtService;
+  public AuthController(UserService userService,
+      JwtService jwtService,
+      ApplicationEventPublisher eventPublisher) {
+    this.userService = userService;
+    this.jwtService = jwtService;
+    this.eventPublisher = eventPublisher;
+  }
 
   @PostMapping("/register")
-  public ResponseEntity<User> register(@RequestBody RegisterRequest user) {
-    try {
-      if (user.userType() == UserType.PATIENT) {
-        CreatePatientRequest patientRequest = new CreatePatientRequest(
-            user.fullname(),
-            user.email(),
-            user.password());
-
-        userService.createPatient(patientRequest);
-      } else if (user.userType() == UserType.PHYSIO) {
-        CreatePhysiotherapistRequest physiotherapistRequest = new CreatePhysiotherapistRequest(
-            user.fullname(),
-            user.email(),
-            user.password(),
-            user.crefito());
-
-        userService.createPhysiotherapist(physiotherapistRequest);
-      } else {
-        System.out.println("Invalid user type: " + user.userType());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-      }
-
-      return ResponseEntity.status(HttpStatus.CREATED).build(); 
-    } catch (IllegalArgumentException e) {
-      System.out.println("Error during user registration: " + e.getMessage());
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+  public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
+    UserResponse created;
+    if (request.userType() == UserType.PATIENT) {
+      var patientReq = new CreatePatientRequest(request.fullname(), request.email(), request.password());
+      created = userService.createPatient(patientReq);
+    } else if (request.userType() == UserType.PHYSIO) {
+      var physioReq = new CreatePhysiotherapistRequest(
+          request.fullname(), request.email(), request.password(), request.crefito());
+      created = userService.createPhysiotherapist(physioReq);
+    } else {
+      return ResponseEntity.badRequest().build();
     }
+
+    eventPublisher.publishEvent(new UserCreatedEvent(created));
+
+    URI location = URI.create("/users/" + created.id());
+    return ResponseEntity.created(location).body(created);
   }
 
   @PostMapping("/login")
-  public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request) {
-    User user = userService.validateUser(request.email(), request.password());
-
+  public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
+    var user = userService.validateUserForAuth(request.email(), request.password());
     String token = jwtService.generateToken(user);
 
-    return ResponseEntity.ok(new AuthResponse(token));
-  }
+    HttpHeaders headers = new HttpHeaders();
+    headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
 
+    return ResponseEntity.ok().headers(headers).body(new AuthResponse(token));
+  }
 }

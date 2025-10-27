@@ -67,7 +67,7 @@ class UserControllerTest {
 
   @Test
   void testGetMyProfile_AsPatient_Success() throws Exception {
-    mockMvc.perform(get("/users/me")
+    mockMvc.perform(get("/me")
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + patientToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(testPatient.getId().toString()))
@@ -79,7 +79,7 @@ class UserControllerTest {
 
   @Test
   void testGetMyProfile_AsPhysio_Success() throws Exception {
-    mockMvc.perform(get("/users/me")
+    mockMvc.perform(get("/me")
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + physioToken))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(testPhysio.getId().toString()))
@@ -91,7 +91,7 @@ class UserControllerTest {
 
   @Test
   void testGetMyProfile_Fail_Unauthenticated() throws Exception {
-    mockMvc.perform(get("/users/me"))
+    mockMvc.perform(get("/me"))
         .andExpect(status().isForbidden());
   }
 }

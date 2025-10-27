@@ -1,5 +1,6 @@
 package br.com.physioapp.api.physioapp.model;
 
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -19,14 +20,19 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @DiscriminatorValue("PHYSIO")
 public class Physiotherapist extends User {
 
     @Column(name = "crefito", unique = true)
     private String crefito;
 
-    @OneToMany(mappedBy = "physiotherapist", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "physiotherapist", cascade = {
+            CascadeType.PERSIST, CascadeType.MERGE }, orphanRemoval = false, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Appointment> appointments;
+
+    public List<Appointment> getAppointmentsUnmodifiable() {
+        return Collections.unmodifiableList(appointments);
+    }
 }
