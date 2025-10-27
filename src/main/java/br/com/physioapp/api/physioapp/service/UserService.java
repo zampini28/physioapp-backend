@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import br.com.physioapp.api.physioapp.dto.CreatePatientRequest;
 import br.com.physioapp.api.physioapp.dto.CreatePhysiotherapistRequest;
+import br.com.physioapp.api.physioapp.dto.UserResponse;
 import br.com.physioapp.api.physioapp.dto.UserUpdateRequest;
 import br.com.physioapp.api.physioapp.exception.AuthenticationException;
 import br.com.physioapp.api.physioapp.exception.CrefitoAlreadyExistsException;
@@ -115,6 +116,25 @@ public class UserService {
       throw new ResourceNotFoundException("ID Usuário não encontrado: " + id);
     }
     userRepository.deleteById(id);
+  }
+  
+  @Transactional(readOnly = true)
+  public UserResponse getUserProfile(UUID userId) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado: " + userId));
+
+    String crefito = null;
+
+    if (user instanceof Physiotherapist) {
+      crefito = ((Physiotherapist) user).getCrefito();
+    }
+
+    return new UserResponse(
+        user.getId(),
+        user.getFullname(),
+        user.getEmail(),
+        user.getType(),
+        crefito);
   }
 
 }

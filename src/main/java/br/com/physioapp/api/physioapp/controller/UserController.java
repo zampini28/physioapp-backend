@@ -3,8 +3,10 @@ package br.com.physioapp.api.physioapp.controller;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import br.com.physioapp.api.physioapp.dto.CreatePatientRequest;
 import br.com.physioapp.api.physioapp.dto.CreatePhysiotherapistRequest;
 import br.com.physioapp.api.physioapp.dto.RegisterRequest;
+import br.com.physioapp.api.physioapp.dto.UserResponse;
 import br.com.physioapp.api.physioapp.dto.UserUpdateRequest;
 import br.com.physioapp.api.physioapp.model.User;
 import br.com.physioapp.api.physioapp.model.UserType;
@@ -26,10 +29,18 @@ import br.com.physioapp.api.physioapp.service.UserService;
 @RequestMapping("/users")
 public class UserController {
 
-  private final UserService userService;
+  @Autowired
+  private UserService userService;
 
-  public UserController(UserService userService) {
-    this.userService = userService;
+  @GetMapping("/me")
+  public ResponseEntity<UserResponse> getMyProfile(
+      @AuthenticationPrincipal String userIdString) {
+
+    UUID userId = UUID.fromString(userIdString);
+
+    UserResponse userProfile = userService.getUserProfile(userId);
+
+    return ResponseEntity.ok(userProfile);
   }
 
   @PostMapping

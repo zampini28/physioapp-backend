@@ -3,6 +3,7 @@ package br.com.physioapp.api.physioapp.controller;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -22,11 +23,8 @@ import br.com.physioapp.api.physioapp.service.NotificationService;
 @RequestMapping("/notifications")
 public class NotificationController {
 
-  private final NotificationService notificationService;
-
-  public NotificationController(NotificationService notificationService) {
-    this.notificationService = notificationService;
-  }
+  @Autowired
+  private NotificationService notificationService;
 
   @PostMapping
   public ResponseEntity<Notification> createNotification(@RequestBody NotificationRequestDTO request) {
