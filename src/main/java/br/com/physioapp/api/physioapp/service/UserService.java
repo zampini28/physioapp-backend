@@ -64,7 +64,7 @@ public class UserService {
     }
 
     Patient patient = new Patient();
-    patient.setFullname(request.fullName());
+    patient.setFullname(request.fullname());
     patient.setEmail(request.email());
     patient.setPassword(passwordEncoder.encode(request.password()));
     patient.setType(UserType.PATIENT);
@@ -87,7 +87,7 @@ public class UserService {
     }
 
     Physiotherapist physio = new Physiotherapist();
-    physio.setFullname(request.fullName());
+    physio.setFullname(request.fullname());
     physio.setEmail(request.email());
     physio.setPassword(passwordEncoder.encode(request.password()));
     physio.setCrefito(request.crefito());
@@ -100,7 +100,7 @@ public class UserService {
   public User updateUser(UUID id, UserUpdateRequest userDetails) {
     User existingUser = getUserById(id);
 
-    existingUser.setFullname(userDetails.fullName());
+    existingUser.setFullname(userDetails.fullname());
     existingUser.setEmail(userDetails.email());
 
     if (userDetails.password() != null && !userDetails.password().isBlank()) {

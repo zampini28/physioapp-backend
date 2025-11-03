@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 
 public record UserUpdateRequest(
   @NotBlank(message = "Nome completo é obrigatório")
-  String fullName,
+  String fullname,
   
   @NotBlank(message = "E-mail é obrigatório")
   @Email(message = "E-mail inválido")
